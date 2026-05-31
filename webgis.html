@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoPortal - Shapefile Based Basemap & Grouped GIS</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-search@3.0.9/dist/leaflet-search.src.css" />
+    
+    <style>
+        /* Penyesuaian Style agar Tombol Pencarian Serasi dengan Tema Gelap WebGIS */
+        .leaflet-control-search {
+            background: #1e1e1e !important;
+            border: 1px solid #2d2d2d !important;
+            border-radius: 4px !important;
+        }
+        .leaflet-control-search .search-input {
+            background: #000000 !important;
+            color: #ffffff !important;
+            border: 1px solid #2d2d2d !important;
+            font-size: 12px !important;
+            padding: 4px 6px !important;
+        }
+        .leaflet-control-search .search-button {
+            filter: invert(1); /* Mengubah ikon kaca pembesar bawaan menjadi warna putih */
+            background-color: #1e1e1e !important;
+        }
+        .leaflet-control-search .search-tooltip {
+            background: #1e1e1e !important;
+            color: #ffffff !important;
+            border: 1px solid #2d2d2d !important;
+        }
+        .leaflet-control-search .search-tip:hover {
+            background: #2563eb !important;
+            color: #ffffff !important;
+        }
+    </style>
+    
+    
+    <style>
+        :root { 
+            --primary: #2563eb; 
+            --primary-hover: #1d4ed8;
+            --success: #10b981;
+            --dark: #000000; 
+            --light: #121212; 
+            --card-bg: #1e1e1e; 
+            --border: #2d2d2d; 
+            --text-main: #ffffff; 
+            --text-muted: #a0aec0; 
+        }
+        
+        body { 
+            margin: 0; padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            height: 100vh; display: flex; flex-direction: column;
+            background-color: var(--light); color: var(--text-main);
+        }
+
+        /* --- NAVBAR STYLE --- */
+        .navbar {
+            background-color: var(--dark); color: white;
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0 20px; height: 60px; box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            z-index: 2000; border-bottom: 1px solid var(--border);
+        }
+        .nav-logo { font-size: 20px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+        .nav-menu { display: flex; gap: 10px; list-style: none; margin: 0; padding: 0; }
+        .nav-item a {
+            color: var(--text-muted); text-decoration: none; padding: 8px 16px;
+            border-radius: 4px; font-size: 14px; transition: all 0.3s; cursor: pointer;
+        }
+        .nav-item a:hover, .nav-item.active a { color: white; background-color: var(--primary); }
+
+        /* --- PAGES CONTAINER --- */
+        .page-content { flex: 1; display: none; overflow: hidden; }
+        .page-content.active { display: flex; flex-direction: column; }
+
+        /* --- HOME PAGE --- */
+        #page-home { position: relative; overflow-y: auto; }
+        #home-bg-map {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1;
+            opacity: 0.35; pointer-events: none;
+        }
+        .home-container { position: relative; z-index: 10; padding: 60px 20px; max-width: 900px; margin: 0 auto; text-align: center; }
+        .home-hero {
+            background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(8px); color: white;
+            padding: 50px 30px; border-radius: 16px; margin-bottom: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7); border: 1px solid var(--border);
+        }
+        .btn-primary-web { background: var(--primary); color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 600; margin-top: 15px; cursor: pointer; transition: 0.2s;}
+        .btn-primary-web:hover { background: var(--primary-hover); }
+
+        /* --- WEBGIS INTERFACE PAGE --- */
+        #main-gis-container { display: flex; flex: 1; width: 100%; overflow: hidden; }
+        #sidebar { width: 340px; background: var(--card-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow-y: auto; }
+        #map { flex: 1; }
+        #database-container { height: 250px; background: var(--card-bg); border-top: 2px solid var(--border); overflow: auto; display: none; }
+        
+        .sidebar-header { background: var(--dark); padding: 15px; font-weight: bold; font-size: 14px; border-bottom: 1px solid var(--border); }
+        .sidebar-section { padding: 15px; border-bottom: 1px solid var(--border); }
+        .section-title { font-size: 12px; font-weight: bold; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+        
+        /* --- CATEGORIZED INPUT BOXES --- */
+        .upload-group-container { background: var(--dark); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 10px; position: relative;}
+        .upload-group-title { font-size: 11px; font-weight: bold; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; text-transform: uppercase; }
+        .upload-group-title.base { color: #38bdf8; }
+        .upload-group-title.thematic { color: #a855f7; }
+        .upload-group-title.analysis { color: #10b981; }
+        
+        .upload-hint { font-size: 10px; color: var(--text-muted); display: block; margin-top: 3px; }
+        .drive-status { font-size: 10px; color: var(--success); margin-top: 4px; display: none; align-items: center; gap: 4px; }
+
+        /* --- GROUPED LAYER MANAGER STYLE --- */
+        .layer-group-container { background: var(--dark); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 12px; }
+        .layer-group-title { font-size: 12px; font-weight: bold; color: #f59e0b; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; border-bottom: 1px solid var(--border); padding-bottom: 4px;}
+        .layer-group-title.base { color: #38bdf8; }
+        .layer-group-title.thematic { color: #a855f7; }
+        .layer-group-title.analysis { color: #10b981; }
+        
+        .layer-item { background: var(--card-bg); border: 1px solid var(--border); padding: 10px; border-radius: 4px; margin-bottom: 6px; }
+        .basemap-option { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 4px 0; color: var(--text-main); cursor: pointer; }
+        .filter-box { background: var(--dark); padding: 6px; border-radius: 4px; border: 1px solid var(--border); margin: 6px 0; }
+        
+        .form-row { margin-bottom: 8px; }
+        .form-row label { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+        
+        select, input[type="text"], input[type="number"], textarea { 
+            width: 100%; padding: 6px; font-size: 12px; background: var(--dark); color: white; border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box;
+        }
+        .layer-controls { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; }
+
+        /* --- SARAN / FEEDBACK PAGE --- */
+        .feedback-container { max-width: 550px; margin: 40px auto; background: var(--card-bg); padding: 30px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .btn-submit { width: 100%; padding: 12px; background: var(--success); color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 10px; transition: 0.2s;}
+        .btn-submit:hover { background: #0ca678; }
+        .btn-submit:disabled { background: #495057; cursor: not-allowed; }
+        
+        /* --- TABLES & POPUP STYLING --- */
+        .leaflet-popup-content-wrapper { background: var(--card-bg) !important; color: white !important; border: 1px solid var(--border); }
+        .leaflet-popup-tip { background: var(--card-bg) !important; }
+        .popup-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 5px; }
+        .popup-table td { padding: 4px; border: 1px solid var(--border); }
+        .popup-table tr:nth-child(even) { background: var(--dark); }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 12px; color: white; }
+        th { background: var(--dark); color: white; position: sticky; top: 0; padding: 10px; text-align: left; border-bottom: 2px solid var(--border); z-index: 5; }
+        td { padding: 8px; border: 1px solid var(--border); background: var(--card-bg); vertical-align: middle; }
+        tr:nth-child(even) td { background: var(--dark); }
+        
+        .btn { cursor: pointer; border: none; border-radius: 4px; padding: 5px 8px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px; font-weight: 500; }
+        .btn-db { background: #0ea5e9; color: white; }
+        .btn-del { background: #ef4444; color: white; }
+        .btn-analysis { background: var(--success); color: white; width: 100%; justify-content: center; margin-top: 5px; }
+        
+        input[type="color"] { border: none; width: 24px; height: 24px; cursor: pointer; background: none; padding:0; vertical-align: middle; }
+        .analysis-box { background: var(--dark); border: 1px solid var(--border); border-radius: 6px; padding: 10px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-logo"><i class="fa-solid fa-earth-asia"></i> GeoPortal WebGIS</div>
+        <ul class="nav-menu">
+            <li class="nav-item active" id="menu-home"><a onclick="switchPage('home')">Home</a></li>
+            <li class="nav-item" id="menu-gis"><a onclick="switchPage('gis')">Peta GIS</a></li>
+            <li class="nav-item" id="menu-feedback"><a onclick="switchPage('feedback')"><i class="fa-solid fa-envelope-open-text"></i> Saran & Masukan</a></li>
+            <li class="nav-item" id="menu-login"><a onclick="switchPage('login')"><i class="fa-solid fa-user-lock"></i> Login</a></li>
+        </ul>
+    </nav>
+
+    <div id="page-home" class="page-content active">
+        <div id="home-bg-map"></div>
+        <div class="home-container">
+            <div class="home-hero">
+                <h1 style="margin:0 0 12px 0; font-size: 32px;">GeoPortal Geoprocessing System</h1>
+                <p style="margin:0; color: var(--text-muted); font-size: 15px; line-height: 1.6;">Sistem WebGIS terintegrasi dengan pembagian input data berbasis Shapefile (.ZIP) terstruktur, kustomisasi simbologi, dan analisis spasial otomatis cloud backup.</p>
+                <span onclick="switchPage('gis')" class="btn-primary-web">Mulai Analisis Peta <i class="fa-solid fa-circle-play" style="margin-left:6px;"></i></span>
+            </div>
+        </div>
+    </div>
+
+    <div id="page-gis" class="page-content">
+        <div id="main-gis-container">
+            <div id="sidebar">
+                <div class="sidebar-header"><i class="fa-solid fa-gears"></i> Kontrol Geoprocessing</div>
+                
+                <div class="sidebar-section">
+                    <div class="section-title"><i class="fa-solid fa-cloud-arrow-up"></i> Data Input (Upload & Sync)</div>
+                    
+                    <div class="upload-group-container">
+                        <div class="upload-group-title base"><i class="fa-solid fa-map"></i> 1. Upload Peta Dasar</div>
+                        <input type="file" id="upload-basemap" accept=".zip" style="color:var(--text-muted); font-size:11px;"/>
+                        <span class="upload-hint">Format: Shapefile Wilayah (.ZIP)</span>
+                        <div id="status-bm" class="drive-status"></div>
+                    </div>
+
+                    <div class="upload-group-container">
+                        <div class="upload-group-title thematic"><i class="fa-solid fa-folder-open"></i> 2. Upload Data Tematik</div>
+                        <input type="file" id="upload-thematic" accept=".zip" style="color:var(--text-muted); font-size:11px;"/>
+                        <span class="upload-hint">Format: File Shapefile (.ZIP)</span>
+                        <div id="status-thematic" class="drive-status"></div>
+                    </div>
+
+                    <div class="upload-group-container">
+                        <div class="upload-group-title analysis"><i class="fa-solid fa-chart-pie"></i> 3. Upload Data Analisa</div>
+                        <input type="file" id="upload-analysis" accept=".zip" style="color:var(--text-muted); font-size:11px;"/>
+                        <span class="upload-hint">Format: File Shapefile (.ZIP)</span>
+                        <div id="status-analysis" class="drive-status"></div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="section-title"><i class="fa-solid fa-calculator"></i> Menu Analisis Spasial</div>
+                    <div class="analysis-box">
+                        <div style="font-size:12px; font-weight:bold; margin-bottom:8px;"><i class="fa-solid fa-circle-dot" style="color:var(--success)"></i> Analisis Buffer</div>
+                        <div class="form-row">
+                            <label>Pilih Layer Target:</label>
+                            <select id="buffer-layer-select"><option value="">-- Pilih Layer --</option></select>
+                        </div>
+                        <div class="form-row">
+                            <label>Radius Jarak:</label>
+                            <input type="number" id="buffer-radius" value="1" min="0.1" step="0.1">
+                        </div>
+                        <div class="form-row">
+                            <label>Satuan Radius:</label>
+                            <select id="buffer-unit">
+                                <option value="kilometers">Kilometer (Km)</option>
+                                <option value="meters">Meter (m)</option>
+                            </select>
+                        </div>
+                        <button onclick="runBufferAnalysis()" class="btn btn-analysis"><i class="fa-solid fa-play"></i> Jalankan Buffer</button>
+                    </div>
+
+                    <div class="analysis-box">
+                        <div style="font-size:12px; font-weight:bold; margin-bottom:8px;"><i class="fa-solid fa-ruler" style="color:var(--primary)"></i> Hitung Jarak Spasial</div>
+                        <button onclick="startDistanceMeasurement()" id="btn-distance" class="btn btn-db" style="width:100%; justify-content:center;"><i class="fa-solid fa-crosshairs"></i> Aktifkan Pengukur Jarak</button>
+                        <div id="distance-result" style="margin-top:8px; font-size:12px; color:#f59e0b; font-weight:bold; text-align:center;"></div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section" style="flex:1; border-bottom:none;">
+                    <div class="section-title"><i class="fa-solid fa-layer-group"></i> Manajemen Lapisan Layer</div>
+                    
+                    <div class="layer-group-container">
+                        <div class="layer-group-title base"><i class="fa-solid fa-map"></i> Kelompok 1: Peta Dasar</div>
+                        <div class="basemap-option">
+                            <input type="radio" id="bm-dark" name="basemap-toggle" value="dark" checked onchange="changeBasemap(this.value)">
+                            <label for="bm-dark">CartoDB Dark Matter</label>
+                        </div>
+                        <div class="basemap-option">
+                            <input type="radio" id="bm-osm" name="basemap-toggle" value="osm" onchange="changeBasemap(this.value)">
+                            <label for="bm-osm">OpenStreetMap Standard</label>
+                        </div>
+                        <div id="custom-basemap-list"></div>
+                    </div>
+
+                    <div class="layer-group-container">
+                        <div class="layer-group-title thematic"><i class="fa-solid fa-folder-open"></i> Kelompok 2: Layer Tematik</div>
+                        <div id="group-thematic-list">
+                            <p style="text-align: center; color: var(--text-muted); font-size: 11px; margin: 5px 0;">Belum ada data SHP</p>
+                        </div>
+                    </div>
+
+                    <div class="layer-group-container">
+                        <div class="layer-group-title analysis"><i class="fa-solid fa-chart-pie"></i> Kelompok 3: Lapisan Analisa</div>
+                        <div id="group-analysis-list">
+                            <p style="text-align: center; color: var(--text-muted); font-size: 11px; margin: 5px 0;">Belum ada hasil analisa</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="map"></div>
+        </div>
+
+        <div id="database-container">
+            <div style="padding: 10px; display: flex; justify-content: space-between; align-items: center; background: var(--dark); position: sticky; top:0; z-index:10; border-bottom: 1px solid var(--border);">
+                <strong id="db-title">Database View</strong>
+                <button onclick="closeDatabase()" class="btn btn-del">Tutup Table</button>
+            </div>
+            <div id="table-content"></div>
+        </div>
+    </div>
+
+    <div id="page-feedback" class="page-content">
+        <div class="feedback-container">
+            <h3 style="margin-top:0; color:white;"><i class="fa-solid fa-comments" style="color:var(--primary)"></i> Formulir Kotak Saran</h3>
+            <p style="font-size:13px; color:var(--text-muted); margin-bottom:20px;">Kirimkan kritik atau saran Anda langsung ke Google Drive Admin.</p>
+            <form id="feedback-form" onsubmit="handleFeedbackSubmit(event)">
+                <div class="form-row">
+                    <label style="color:var(--text-muted); font-size:12px;">Nama Pengirim:</label>
+                    <input type="text" id="fb-name" required>
+                </div>
+                <div class="form-row">
+                    <label style="color:var(--text-muted); font-size:12px;">Subjek Pesan:</label>
+                    <input type="text" id="fb-subject" required>
+                </div>
+                <div class="form-row">
+                    <label style="color:var(--text-muted); font-size:12px;">Isi Saran & Masukan:</label>
+                    <textarea id="fb-message" rows="4" required></textarea>
+                </div>
+                <button type="submit" id="fb-submit-btn" class="btn-submit"><i class="fa-solid fa-paper-plane"></i> Kirim ke Google Drive Admin</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="page-login" class="page-content"><div style="padding:40px; text-align:center;"><h3>Admin Login</h3><button onclick="switchPage('home')" class="btn-submit" style="max-width:200px;">Kembali</button></div></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shpjs/4.0.2/shp.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <script src="satellite-layer.js"></script>
+
+    <script>
+        // GANTI DENGAN URL WEB APP GOOGLE APPS SCRIPT ANDA HASIL DEPLOY
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzpYamI6IVAfKH0l_dlJaEBXBjtUWMobOFp4V337YPRVbzieqVtZeUxNYztR_bnK-_qmQ/exec";
+        
+        let mapInitialized = false;
+        let map, homeMap, baseTileLayer;
+        let layersData = {};
+        let bufferLayersRegistry = {};
+        let customBasemapsRegistry = {};
+        let distanceModeActive = false;
+        let distancePoints = [], distanceMarkers = [], distancePolyline = null;
+
+        document.addEventListener("DOMContentLoaded", function() { initHomeMapAnimation(); });
+
+        function initHomeMapAnimation() {
+            homeMap = L.map('home-bg-map', { zoomControl: false, attributionControl: false, dragging: false }).setView([-5.4292, 105.2611], 6);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(homeMap);
+        }
+
+        function switchPage(pageId) {
+            document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(m => m.classList.remove('active'));
+            document.getElementById(`page-${pageId}`).classList.add('active');
+            document.getElementById(`menu-${pageId}`).classList.add('active');
+            if (pageId === 'gis' && !mapInitialized) setTimeout(() => { initMap(); }, 100);
+        }
+
+        function initMap() {
+            map = L.map('map').setView([-2.5, 118], 5);
+            baseTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CARTO' }).addTo(map);
+            map.on('click', handleMapClickForDistance);
+            mapInitialized = true;
+            initUploadHandlers();
+            initDrawTools(map, APPS_SCRIPT_URL);
+            initSatelliteLayer(map);
+            initInariskLayers(map);
+            initStreetView(map);
+            initSearchTool(map);
+        }
+
+        function changeBasemap(type) {
+            if (!map) return;
+            if(type === 'dark' || type === 'osm') {
+                map.removeLayer(baseTileLayer);
+                if (type === 'dark') baseTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png');
+                if (type === 'osm') baseTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+                baseTileLayer.addTo(map);
+                
+                for (let bId in customBasemapsRegistry) {
+                    if (map.hasLayer(customBasemapsRegistry[bId])) {
+                        customBasemapsRegistry[bId].bringToFront();
+                    }
+                }
+            }
+        }
+
+        // FUNGSI API KIRIM SARAN KE DRIVE
+        function handleFeedbackSubmit(event) {
+            event.preventDefault();
+            const submitBtn = document.getElementById('fb-submit-btn');
+            const name = document.getElementById('fb-name').value;
+            const subject = document.getElementById('fb-subject').value;
+            const message = document.getElementById('fb-message').value;
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = "<i class='fa-solid fa-spinner fa-spin'></i> Mengirim ke Drive...";
+
+            const payload = {
+                action: "submitFeedback",
+                name: name,
+                subject: subject,
+                message: message
+            };
+
+            // Menggunakan fetch mode no-cors jika terbentur batasan Apps Script, atau normal POST
+            fetch(APPS_SCRIPT_URL, {
+                method: "POST",
+                mode: "no-cors", 
+                headers: { "Content-Type": "text/plain" },
+                body: JSON.stringify(payload)
+            })
+            .then(() => {
+                alert("Saran berhasil terkirim dan disimpan di folder 'GeoPortal_Feedback' Google Drive!");
+                document.getElementById('feedback-form').reset();
+            })
+            .catch(err => {
+                console.error(err);
+                alert("Terjadi gangguan pengiriman ke cloud.");
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = "<i class='fa-solid fa-paper-plane'></i> Kirim ke Google Drive Admin";
+            });
+        }
+
+        // FUNGSI API BACKUP FILE ZIP KE DRIVE
+        function uploadFileToGoogleDrive(file, statusElementId) {
+            const statusEl = document.getElementById(statusElementId);
+            statusEl.style.display = "flex";
+            statusEl.style.color = "#eab308";
+            statusEl.innerHTML = "<i class='fa-solid fa-cloud-arrow-up fa-bounce'></i> Mem-backup file ke Drive...";
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Data = e.target.result.split(',')[1];
+                const payload = {
+                    action: "uploadShp",
+                    fileName: file.name,
+                    contentType: file.type || "application/zip",
+                    base64Data: base64Data
+                };
+
+                fetch(APPS_SCRIPT_URL, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: { "Content-Type": "text/plain" },
+                    body: JSON.stringify(payload)
+                })
+                .then(() => {
+                    statusEl.style.color = "#10b981";
+                    statusEl.innerHTML = "<i class='fa-solid fa-cloud-check'></i> Tersinkron ke Google Drive!";
+                })
+                .catch(err => {
+                    statusEl.style.color = "#ef4444";
+                    statusEl.innerHTML = "<i class='fa-solid fa-circle-exclamation'></i> Gagal sinkron otomatis.";
+                    console.error(err);
+                });
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function bindFeaturePopup(layer) {
+            if (layer.feature && layer.feature.properties) {
+                let props = layer.feature.properties;
+                let popupHtml = `<div style="font-weight:bold; border-bottom:1px solid #444; padding-bottom:4px; margin-bottom:6px;">Data Atribut</div>`;
+                popupHtml += `<table class="popup-table">`;
+                for (let key in props) {
+                    if (props.hasOwnProperty(key)) {
+                        popupHtml += `<tr><td style="font-weight:600; color:#a0aec0;">${key}</td><td>${props[key]}</td></tr>`;
+                    }
+                }
+                popupHtml += `</table>`;
+                layer.bindPopup(popupHtml, { maxWidth: 260 });
+            }
+        }
+
+        function initUploadHandlers() {
+            // 1. INPUT UNTUK PETA DASAR
+            document.getElementById('upload-basemap').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                // Cloud Sync
+                uploadFileToGoogleDrive(file, "status-bm");
+
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    shp(event.target.result).then(function(geojson) {
+                        const bId = Date.now();
+                        const baseLayerObj = L.geoJSON(geojson, { 
+                            style: { color: "#444444", weight: 1.5, fillColor: "#1a1a1a", fillOpacity: 0.6 } 
+                        }).addTo(map);
+                        
+                        customBasemapsRegistry[bId] = baseLayerObj;
+                        
+                        const listContainer = document.getElementById('custom-basemap-list');
+                        const div = document.createElement('div');
+                        div.className = 'basemap-option';
+                        div.id = `bm-custom-${bId}`;
+                        div.innerHTML = `
+                            <input type="checkbox" id="chk-${bId}" checked onchange="toggleCustomBasemap(${bId}, this.checked)">
+                            <label for='chk-${bId}' style='font-size:11px; color:#38bdf8; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;'>${file.name}</label>
+                            <i class="fa-solid fa-trash" onclick="deleteCustomBasemap(${bId})" style="color:#ef4444; cursor:pointer; font-size:10px; margin-left:5px;"></i>
+                        `;
+                        listContainer.appendChild(div);
+                        map.fitBounds(baseLayerObj.getBounds());
+                    }).catch(err => alert("Gagal memetakan file SHP secara lokal."));
+                };
+                reader.readAsArrayBuffer(file);
+            });
+
+            // 2. INPUT UNTUK DATA TEMATIK
+            document.getElementById('upload-thematic').addEventListener('change', function(e) {
+                if(e.target.files[0]) {
+                    processShpUpload(e.target.files[0], 'thematic');
+                    uploadFileToGoogleDrive(e.target.files[0], "status-thematic");
+                }
+            });
+
+            // 3. INPUT UNTUK DATA ANALISA
+            document.getElementById('upload-analysis').addEventListener('change', function(e) {
+                if(e.target.files[0]) {
+                    processShpUpload(e.target.files[0], 'analysis');
+                    uploadFileToGoogleDrive(e.target.files[0], "status-analysis");
+                }
+            });
+        }
+
+        function processShpUpload(file, destinationGroup) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                shp(event.target.result).then(function(geojson) {
+                    const id = Date.now();
+                    const defaultColor = destinationGroup === 'analysis' ? '#10b981' : '#2563eb';
+                    
+                    let featureCollection = geojson;
+                    if (Array.isArray(geojson)) featureCollection = geojson[0];
+                    
+                    const features = featureCollection.features || [];
+                    if (features.length === 0) return alert("Objek spasial kosong.");
+
+                    const columns = Object.keys(features[0].properties || {});
+                    const geomType = features[0].geometry ? features[0].geometry.type : "Unknown";
+
+                    const leafletLayer = L.geoJSON(featureCollection, {
+                        pointToLayer: function (feature, latlng) {
+                            return L.circleMarker(latlng, { radius: 6, fillColor: defaultColor, color: "#ffffff", weight: 1, fillOpacity: 0.8 });
+                        },
+                        style: { color: defaultColor, weight: 2, fillColor: defaultColor, fillOpacity: 0.5 },
+                        onEachFeature: (feature, layer) => {
+                            layer._customId = 'feat-' + Math.random().toString(36).substr(2, 9);
+                            if(!window._mapFeaturesRegistry) window._mapFeaturesRegistry = {};
+                            window._mapFeaturesRegistry[layer._customId] = layer;
+                            bindFeaturePopup(layer);
+                        }
+                    }).addTo(map);
+
+                    if (destinationGroup === 'thematic') {
+                        layersData[id] = { name: file.name, leafletLayer: leafletLayer, features: features, columns: columns, geojsonRaw: featureCollection, geomType: geomType };
+                        addThematicLayerToUI(id, file.name, columns);
+                        updateBufferDropdown();
+                    } else {
+                        bufferLayersRegistry[id] = leafletLayer;
+                        addAnalysisLayerToUI(id, `Import Analisa: ${file.name}`);
+                    }
+                    map.fitBounds(leafletLayer.getBounds());
+                }).catch(err => console.error(err));
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function toggleCustomBasemap(bId, isChecked) {
+            if(isChecked) {
+                map.addLayer(customBasemapsRegistry[bId]);
+                customBasemapsRegistry[bId].bringToFront();
+            } else {
+                map.removeLayer(customBasemapsRegistry[bId]);
+            }
+        }
+        
+        function deleteCustomBasemap(bId) {
+            if (map.hasLayer(customBasemapsRegistry[bId])) map.removeLayer(customBasemapsRegistry[bId]);
+            delete customBasemapsRegistry[bId];
+            document.getElementById(`bm-custom-${bId}`).remove();
+        }
+
+        function addThematicLayerToUI(id, name, columns) {
+            const container = document.getElementById('group-thematic-list');
+            if (Object.keys(layersData).length === 1) container.innerHTML = '';
+            let optionsHtml = columns.map(col => `<option value="${col}">${col}</option>`).join('');
+            const div = document.createElement('div');
+            div.className = 'layer-item'; div.id = `thematic-${id}`;
+            div.innerHTML = `
+                <div style="font-weight: 600; font-size: 12px; color: white; margin-bottom:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><i class="fa-solid fa-file-lines" style="color:#a855f7"></i> ${name}</div>
+                <div class="filter-box">
+                    <select onchange="applyAttributeStyling(${id}, this.value)">
+                        <option value="">-- Warna Otomatis Atribut --</option>
+                        ${optionsHtml}
+                    </select>
+                </div>
+                <div class="layer-controls">
+                    <button onclick="viewDatabase(${id})" class="btn btn-db"><i class="fa-solid fa-table"></i> Atribut</button>
+                    <button onclick="removeThematicLayer(${id})" class="btn btn-del"><i class="fa-solid fa-trash"></i> Hapus</button>
+                </div>`;
+            container.prepend(div);
+        }
+
+        function addAnalysisLayerToUI(bufferId, labelName) {
+            const container = document.getElementById('group-analysis-list');
+            if (Object.keys(bufferLayersRegistry).length === 1) container.innerHTML = '';
+            const div = document.createElement('div');
+            div.className = 'layer-item'; div.id = `analysis-${bufferId}`;
+            div.style.borderLeft = "3px solid #10b981";
+            div.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; width:100%; gap:10px;">
+                    <div style="font-size:11px; color:white; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><i class="fa-solid fa-layer-group" style="color:#10b981"></i> ${labelName}</div>
+                    <button onclick="removeAnalysisLayer(${bufferId})" class="btn btn-del" style="padding:2px 6px; font-size:10px;"><i class="fa-solid fa-trash"></i></button>
+                </div>`;
+            container.prepend(div);
+        }
+
+        function applyAttributeStyling(id, column) {
+            const layerInfo = layersData[id];
+            if (!column) { 
+                layerInfo.leafletLayer.setStyle({ color: '#2563eb', fillColor: '#2563eb' }); 
+                return; 
+            }
+            let uniqueValues = new Set();
+            layerInfo.features.forEach(f => { 
+                if (f.properties && f.properties[column] !== undefined && f.properties[column] !== null) uniqueValues.add(f.properties[column]); 
+            });
+            let colorMap = {};
+            uniqueValues.forEach(val => { 
+                colorMap[val] = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'); 
+            });
+            layerInfo.leafletLayer.eachLayer(layer => {
+                if (layer.feature && layer.feature.properties) {
+                    let val = layer.feature.properties[column];
+                    let featColor = colorMap[val] || '#94a3b8';
+                    layer.setStyle({ color: featColor, fillColor: featColor });
+                }
+            });
+        }
+
+        function updateSingleObjectStyle(customId, property, value, geomType) {
+            const targetLayer = window._mapFeaturesRegistry[customId];
+            if (!targetLayer) return;
+            if (property === 'color') targetLayer.setStyle({ color: value, fillColor: value });
+            if (property === 'size') {
+                if (geomType.includes("Point") && typeof targetLayer.setRadius === 'function') {
+                    targetLayer.setRadius(parseInt(value) || 6);
+                } else {
+                    targetLayer.setStyle({ weight: parseInt(value) || 2 });
+                }
+            }
+        }
+
+        function viewDatabase(id) {
+            const layerInfo = layersData[id];
+            document.getElementById('database-container').style.display = 'block';
+            document.getElementById('db-title').innerText = `Kustomisasi Per Objek: ${layerInfo.name}`;
+            const headers = layerInfo.columns;
+            let tableHtml = `<table><thead><tr><th>Warna</th><th>Ukuran</th>`;
+            headers.forEach(h => tableHtml += `<th>${h}</th>`);
+            tableHtml += `</tr></thead><tbody>`;
+            
+            layerInfo.leafletLayer.eachLayer(layer => {
+                const f = layer.feature; 
+                const cid = layer._customId; 
+                const gType = layerInfo.geomType;
+                if (!f) return;
+                
+                let currentColor = layer.options.color || '#2563eb';
+                let currentSize = gType.includes('Point') ? (layer.options.radius || 6) : (layer.options.weight || 2);
+                
+                tableHtml += `<tr>
+                    <td style="text-align:center;"><input type="color" value="${currentColor}" onchange="updateSingleObjectStyle('${cid}', 'color', this.value, '${gType}')"></td>
+                    <td><input type="number" style="width:60px;" value="${currentSize}" oninput="updateSingleObjectStyle('${cid}', 'size', this.value, '${gType}')"></td>`;
+                headers.forEach(h => tableHtml += `<td>${f.properties[h] !== undefined ? f.properties[h] : ''}</td>`);
+                tableHtml += `</tr>`;
+            });
+            tableHtml += `</tbody></table>`;
+            document.getElementById('table-content').innerHTML = tableHtml;
+        }
+
+        function runBufferAnalysis() {
+            const layerId = document.getElementById('buffer-layer-select').value;
+            const radius = parseFloat(document.getElementById('buffer-radius').value);
+            const unit = document.getElementById('buffer-unit').value;
+            if (!layerId) return alert("Pilih layer target.");
+            if (isNaN(radius) || radius <= 0) return alert("Radius salah.");
+            const targetInfo = layersData[layerId];
+            try {
+                const bufferedGeoJSON = turf.buffer(targetInfo.geojsonRaw, radius, { units: unit });
+                const bufferLayerObj = L.geoJSON(bufferedGeoJSON, { 
+                    style: { color: "#10b981", fillColor: "#10b981", weight: 1, fillOpacity: 0.25, dashArray: "3, 3" } 
+                }).addTo(map);
+                const bufferId = Date.now();
+                bufferLayersRegistry[bufferId] = bufferLayerObj;
+                addAnalysisLayerToUI(bufferId, `Buffer ${targetInfo.name} (${radius} ${unit === 'kilometers' ? 'Km' : 'm'})`);
+            } catch (error) { alert("Gagal memproses Buffer."); }
+        }
+
+        function removeAnalysisLayer(bufferId) {
+            if (map.hasLayer(bufferLayersRegistry[bufferId])) map.removeLayer(bufferLayersRegistry[bufferId]);
+            delete bufferLayersRegistry[bufferId];
+            document.getElementById(`analysis-${bufferId}`).remove();
+            if (Object.keys(bufferLayersRegistry).length === 0) {
+                document.getElementById('group-analysis-list').innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 11px; margin: 5px 0;">Belum ada hasil analisa</p>';
+            }
+        }
+
+        function removeThematicLayer(id) {
+            if (map.hasLayer(layersData[id].leafletLayer)) map.removeLayer(layersData[id].leafletLayer);
+            delete layersData[id];
+            document.getElementById(`thematic-${id}`).remove();
+            if (Object.keys(layersData).length === 0) {
+                document.getElementById('group-thematic-list').innerHTML = '<p style="text-align: center; color: var(--text-muted); font-size: 11px; margin: 5px 0;">Belum ada data SHP</p>';
+                closeDatabase();
+            }
+            updateBufferDropdown();
+        }
+
+        function startDistanceMeasurement() {
+            resetDistanceMeasurement(); 
+            distanceModeActive = true;
+            document.getElementById('btn-distance').innerHTML = "<i class='fa-solid fa-spinner fa-spin'></i> Klik 2 Titik di Peta...";
+            document.getElementById('btn-distance').style.background = "#f59e0b";
+        }
+        
+        function handleMapClickForDistance(e) {
+            if (!distanceModeActive) return;
+            distancePoints.push(e.latlng); 
+            let marker = L.circleMarker(e.latlng, { radius: 5, color: '#f59e0b', fillColor: '#fff', fillOpacity: 1 }).addTo(map);
+            distanceMarkers.push(marker);
+            
+            if (distancePoints.length === 2) {
+                const from = turf.point([distancePoints[0].lng, distancePoints[0].lat]);
+                const to = turf.point([distancePoints[1].lng, distancePoints[1].lat]);
+                const distance = turf.distance(from, to, { units: 'kilometers' });
+                distancePolyline = L.polyline([distancePoints[0], distancePoints[1]], { color: '#f59e0b', weight: 3, dashArray: '5, 5' }).addTo(map);
+                document.getElementById('distance-result').innerHTML = `<i class="fa-solid fa-ruler-combined"></i> Jarak: ${distance.toFixed(3)} Km`;
+                distanceModeActive = false; 
+                document.getElementById('btn-distance').innerHTML = "<i class='fa-solid fa-crosshairs'></i> Aktifkan Pengukur Jarak";
+                document.getElementById('btn-distance').style.background = "#0ea5e9";
+            }
+        }
+        
+        function resetDistanceMeasurement() {
+            distancePoints = []; 
+            distanceMarkers.forEach(m => map.removeLayer(m)); 
+            distanceMarkers = [];
+            if (distancePolyline) { map.removeLayer(distancePolyline); distancePolyline = null; }
+            document.getElementById('distance-result').innerHTML = "";
+        }
+        
+        function updateBufferDropdown() {
+            const select = document.getElementById('buffer-layer-select');
+            select.innerHTML = '<option value="">-- Pilih Layer --</option>';
+            for (let id in layersData) select.innerHTML += `<option value="${id}">${layersData[id].name}</option>`;
+        }
+        function closeDatabase() { document.getElementById('database-container').style.display = 'none'; }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="basemap-collection.js"></script>
+    <script src="draw-tool.js"></script>
+    <script src="inarisk-layer.js"></script>
+    <script src="street-view.js"></script>
+    <script src="search-tool.js"></script>
+    
+</body>
+</html>
